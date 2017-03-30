@@ -6,7 +6,7 @@ static DMG_INLINE int8_t signify8(uint8_t value) {
     if (value <= 0x7F) {
         return value;
     }
-    return -(int8_t)(((~value) + (uint8_t)1) & (uint8_t)0xFF);
+    return -(int8_t) (((~value) + 1) & 0xFF);
 }
 
 static DMG_INLINE uint8_t bg_palette_for_data(uint8_t data, uint8_t bgp) {

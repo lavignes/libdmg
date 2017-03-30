@@ -20,6 +20,8 @@
 #define __has_attribute(...) 0
 #endif
 
+#define DMG_INLINE
+
 #ifndef DMG_INLINE
 #if __has_attribute(always_inline)
 #define DMG_INLINE inline __attribute__((always_inline))

@@ -1,7 +1,7 @@
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror \
     -Wno-unused-result -Wno-unused-parameter -Wno-unused-function \
     -Wno-missing-field-initializers -Wno-missing-braces")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
 set(CMAKE_C_STANDARD 11)
 
 set(HEADERS

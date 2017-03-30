@@ -61,7 +61,6 @@ int main() {
     DMGState *state = calloc(1, sizeof(DMGState));
     state->cpu.ime = true;
     state->rom = rom;
-    memset(state->ppu.lcd, 0xFF, sizeof(uint32_t) * 23040);
 
     pthread_t linethread;
     pthread_create(&linethread, NULL, line, NULL);

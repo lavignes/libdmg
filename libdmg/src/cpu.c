@@ -62,11 +62,11 @@ static DMG_INLINE bool get_z(uint8_t *f) {
     return get_bit(f, 7);
 }
 
-static DMG_INLINE bool get_h(uint8_t *f) {
+static DMG_INLINE bool get_n(uint8_t *f) {
     return get_bit(f, 6);
 }
 
-static DMG_INLINE bool get_n(uint8_t *f) {
+static DMG_INLINE bool get_h(uint8_t *f) {
     return get_bit(f, 5);
 }
 
@@ -92,7 +92,7 @@ static DMG_INLINE void dec_r(DMGState *state, uint8_t *r) {
     set_h(f, (*r & 0x0F) == 0x00);
     *r -= 1;
     set_z(f, *r == 0x00);
-    set_n(f, false);
+    set_n(f, true);
 }
 
 static DMG_INLINE void add_hl_rr(DMGState *state, uint16_t *rr) {
@@ -202,7 +202,7 @@ static DMG_INLINE void dec_mem_hl(DMGState *state) {
     overflow = (uint16_t) ((overflow - 1) & 0xFF);
     write8(state, *hl, (uint8_t) overflow);
     set_z(f, overflow == 0x00);
-    set_n(f, false);
+    set_n(f, true);
 }
 
 static DMG_INLINE void scf(DMGState *state) {
@@ -298,7 +298,7 @@ static DMG_INLINE void and_r(DMGState *state, uint8_t r) {
     set_n(f, false);
     set_h(f, true);
     set_c(f, false);
-    set_z(f, *a);
+    set_z(f, *a == 0x00);
 }
 
 static DMG_INLINE void xor_r(DMGState *state, uint8_t r) {
@@ -308,7 +308,7 @@ static DMG_INLINE void xor_r(DMGState *state, uint8_t r) {
     set_n(f, false);
     set_h(f, false);
     set_c(f, false);
-    set_z(f, *a);
+    set_z(f, *a == 0x00);
 }
 
 static DMG_INLINE void or_r(DMGState *state, uint8_t r) {
@@ -318,7 +318,7 @@ static DMG_INLINE void or_r(DMGState *state, uint8_t r) {
     set_n(f, false);
     set_h(f, false);
     set_c(f, false);
-    set_z(f, *a);
+    set_z(f, *a == 0x00);
 }
 
 static DMG_INLINE void cp_r(DMGState *state, uint8_t r) {
@@ -457,7 +457,7 @@ static DMG_INLINE void rl_r(DMGState *state, uint8_t *r) {
 
 static DMG_INLINE void rr_r(DMGState *state, uint8_t *r) {
     uint8_t *f = &state->cpu.f;
-    uint8_t carry = *r & (uint8_t) 0x01;
+    uint8_t carry = (uint8_t) (*r & 0x01);
     *r = (*r >> 1) | (get_c(f) << 7);
     set_z(f, *r == 0x00);
     set_n(f, false);
@@ -505,7 +505,7 @@ static DMG_INLINE void sla_mem_hl(DMGState *state) {
 
 static DMG_INLINE void sra_r(DMGState *state, uint8_t *r) {
     uint8_t *f = &state->cpu.f;
-    uint8_t carry = *r & (uint8_t) 0x01;
+    uint8_t carry = (uint8_t) (*r &  0x01);
     *r = (uint8_t) ((*r >> 1) | (*r & 0x80));
     set_z(f, *r == 0x00);
     set_n(f, false);
@@ -536,7 +536,7 @@ static DMG_INLINE void swap_mem_hl(DMGState *state) {
 
 static DMG_INLINE void srl_r(DMGState *state, uint8_t *r) {
     uint8_t *f = &state->cpu.f;
-    uint8_t carry = *r & (uint8_t) 0x01;
+    uint8_t carry = (uint8_t) (*r & 0x01);
     *r >>= 1;
     set_z(f, *r == 0x00);
     set_n(f, false);
