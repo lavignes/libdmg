@@ -20,10 +20,12 @@
 #define __has_attribute(...) 0
 #endif
 
+#ifndef DMG_INLINE
 #if __has_attribute(always_inline)
 #define DMG_INLINE inline __attribute__((always_inline))
 #else
 #define DMG_INLINE inline
+#endif
 #endif
 
 #endif // DMG_PORTING_H

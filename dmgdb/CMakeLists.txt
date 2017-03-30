@@ -15,4 +15,4 @@ find_package(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIR})
 
 add_executable(dmgdb ${HEADERS} ${SOURCES})
-target_link_libraries(dmgdb libdmg ${SDL2_LIBRARY})
+target_link_libraries(dmgdb libdmg pthread ${SDL2_LIBRARY})

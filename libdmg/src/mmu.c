@@ -22,9 +22,9 @@ static const uint8_t BIOS[256] = {
 
 uint8_t dmg_mmu_read(DMGState *state, uint16_t address) {
     DMGMmu *mmu = &state->mmu;
-    switch (address & (uint16_t) 0xF000) {
+    switch (address & 0xF000) {
         case 0x0000:
-            if (mmu->io[DMG_IO_BIOS] == 0x00 && address < (uint16_t) 0x0100) {
+            if (mmu->io[DMG_IO_BIOS] == 0x00 && address < 0x0100) {
                 return BIOS[address];
             }
         case 0x1000:
@@ -38,28 +38,28 @@ uint8_t dmg_mmu_read(DMGState *state, uint16_t address) {
 
         case 0x8000:
         case 0x9000:
-            return mmu->vram[mmu->io[DMG_IO_VBK] & 0x01][address - (uint16_t) 0x8000];
+            return mmu->vram[mmu->io[DMG_IO_VBK] & 0x01][address - 0x8000];
 
         case 0xA000:
         case 0xB000:
-            return mmu->cram[address - (uint16_t) 0xA000];
+            return mmu->cram[address - 0xA000];
 
         case 0xC000:
-            return mmu->wram[address - (uint16_t) 0xC000];
+            return mmu->wram[address - 0xC000];
 
         case 0xD000:
-            return mmu->sram[mmu->io[DMG_IO_SVBK] & 0x07][address - (uint16_t) 0xD000];
+            return mmu->sram[mmu->io[DMG_IO_SVBK] & 0x07][address -0xD000];
 
         case 0xE000:
         case 0xF000:
             if (address <= (uint16_t) 0xFDFF) {
-                return dmg_mmu_read(state, address - (uint16_t) 0x2000);
-            } else if (address <= (uint16_t) 0xFE9F) {
-                return mmu->oam[address - (uint16_t) 0xFE00];
-            } else if (address <= (uint16_t) 0xFF7F || address == 0xFFFF) {
-                return mmu->io[address - (uint16_t) 0xFF00];
+                return dmg_mmu_read(state, (uint16_t) (address - 0x2000));
+            } else if (address <= 0xFE9F) {
+                return mmu->oam[address - 0xFE00];
+            } else if (address <= 0xFF7F || address == 0xFFFF) {
+                return mmu->io[address - 0xFF00];
             } else {
-                return mmu->hram[address - (uint16_t) 0xFF80];
+                return mmu->hram[address - 0xFF80];
             }
 
         default:
@@ -71,35 +71,35 @@ uint8_t dmg_mmu_read(DMGState *state, uint16_t address) {
 
 void dmg_mmu_write(DMGState *state, uint16_t address, uint8_t byte) {
     DMGMmu *mmu = &state->mmu;
-    switch (address & (uint16_t) 0xF000) {
+    switch (address & 0xF000) {
         case 0x8000:
         case 0x9000:
-            mmu->vram[mmu->io[DMG_IO_VBK] & 0x01][address - (uint16_t) 0x8000] = byte;
+            mmu->vram[mmu->io[DMG_IO_VBK] & 0x01][address - 0x8000] = byte;
             break;
 
         case 0xA000:
         case 0xB000:
-            mmu->cram[address - (uint16_t) 0xA000] = byte;
+            mmu->cram[address - 0xA000] = byte;
             break;
 
         case 0xC000:
-            mmu->wram[address - (uint16_t) 0xC000] = byte;
+            mmu->wram[address - 0xC000] = byte;
             break;
 
         case 0xD000:
-            mmu->sram[mmu->io[DMG_IO_SVBK] & 0x07][address - (uint16_t) 0xD000] = byte;
+            mmu->sram[mmu->io[DMG_IO_SVBK] & 0x07][address - 0xD000] = byte;
             break;
 
         case 0xE000:
         case 0xF000:
-            if (address <= (uint16_t) 0xFDFF) {
-                dmg_mmu_write(state, address - (uint16_t) 0x2000, byte);
-            } else if (address <= (uint16_t) 0xFE9F) {
-                mmu->oam[address - (uint16_t) 0xFE00] = byte;
-            } else if (address <= (uint16_t) 0xFF7F || address == 0xFFFF) {
-                mmu->io[address - (uint16_t) 0xFF00] = byte;
+            if (address <= 0xFDFF) {
+                dmg_mmu_write(state, (uint16_t) (address - 0x2000), byte);
+            } else if (address <= 0xFE9F) {
+                mmu->oam[address -  0xFE00] = byte;
+            } else if (address <= 0xFF7F || address == 0xFFFF) {
+                mmu->io[address - 0xFF00] = byte;
             } else {
-                mmu->hram[address - (uint16_t) 0xFF80] = byte;
+                mmu->hram[address - 0xFF80] = byte;
             }
 
         default:

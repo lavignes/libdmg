@@ -10,6 +10,7 @@ set(HEADERS
         include/dmg/state.h
         include/dmg/cpu.h
         include/dmg/mmu.h
+        include/dmg/ppu.h
         )
 
 set(SOURCES
@@ -17,10 +18,9 @@ set(SOURCES
         src/state.c
         src/cpu.c
         src/mmu.c
+        src/ppu.c
         )
 
 add_library(libdmg ${HEADERS} ${SOURCES})
 target_include_directories(libdmg PUBLIC include)
 target_include_directories(libdmg PRIVATE private)
-
-target_link_libraries(libdmg)

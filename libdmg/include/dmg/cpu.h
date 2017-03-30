@@ -25,39 +25,41 @@ struct DMGCpu {
 
     union {
         struct {
-            uint8_t b;
-
             uint8_t c;
+
+            uint8_t b;
         };
         uint16_t bc;
     };
 
     union {
         struct {
-            uint8_t d;
-
             uint8_t e;
+
+            uint8_t d;
         };
         uint16_t de;
     };
 
     union {
         struct {
-            uint8_t h;
-
             uint8_t l;
+
+            uint8_t h;
         };
         uint16_t hl;
     };
 
     bool halted;
 
+    uint8_t halt_flags;
+
     bool stopped;
 
     bool ime;
 };
 
-void dmg_cpu_run(DMGState *state, uint32_t cycles);
+void dmg_cpu_run(DMGState *state, size_t cycles);
 
 DMG_EXTERN_END
 

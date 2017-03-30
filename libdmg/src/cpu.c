@@ -35,7 +35,7 @@ static DMG_INLINE void write16(DMGState *state, uint16_t address, uint16_t bytes
 }
 
 static DMG_INLINE void set_bit(uint8_t *byte, uint8_t n, bool value) {
-    *byte &= ~(1 << n) | (value << n);
+    *byte = (uint8_t) ((*byte & ~(1 << n)) | (value << n));
 }
 
 static DMG_INLINE bool get_bit(uint8_t *byte, uint8_t n) {
@@ -117,11 +117,16 @@ static DMG_INLINE void stop(DMGState *state) {
     assert(false);
 }
 
+static DMG_INLINE int8_t signify8(uint8_t value) {
+    if (value <= 0x7F) {
+        return value;
+    }
+    return -(int8_t)(((~value) + (uint8_t)1) & (uint8_t)0xFF);
+}
+
 static DMG_INLINE void jr_n(DMGState *state) {
     state->cycles += 4;
-    uint8_t n = read8_pc(state);
-    n = (uint8_t) ((n ^ 0x80) - 0x80);
-    state->cpu.pc += n;
+    state->cpu.pc += signify8(read8_pc(state));
 }
 
 static DMG_INLINE void ldi_hl_a(DMGState *state) {
@@ -229,8 +234,9 @@ static DMG_INLINE void ccf(DMGState *state) {
 }
 
 static DMG_INLINE void halt(DMGState *state) {
-    // TODO: Unimplemented
-    assert(false);
+    // TODO: real interrupts
+    state->cpu.halted = true;
+    state->cpu.halt_flags = state->mmu.io[DMG_IO_IF];
 }
 
 static DMG_INLINE void add_r(DMGState *state, uint8_t r) {
@@ -260,7 +266,7 @@ static DMG_INLINE void sub_r(DMGState *state, uint8_t r) {
     uint8_t *a = &state->cpu.a;
     set_h(f, (*a & 0x0F) < (r & 0x0F));
     set_c(f, *a < r);
-    a -= r;
+    *a -= r;
     set_z(f, *a == 0x00);
     set_n(f, true);
 }
@@ -642,1044 +648,62 @@ static DMG_INLINE void ld_sp_hl(DMGState *state) {
     state->cpu.sp = state->cpu.hl;
 }
 
-static DMG_INLINE void cb(DMGState *state) {
+static DMG_INLINE void service_interrupts(DMGState *state) {
     DMGCpu *cpu = &state->cpu;
-    uint8_t opcode = read8_pc(state);
-    switch (opcode) {
-
-        case 0x00: // RLC B
-            rlc_r(state, &cpu->b);
-            break;
-
-        case 0x01: // RLC C
-            rlc_r(state, &cpu->c);
-            break;
-
-        case 0x02: // RLC D
-            rlc_r(state, &cpu->d);
-            break;
-
-        case 0x03: // RLC E
-            rlc_r(state, &cpu->e);
-            break;
-
-        case 0x04: // RLC H
-            rlc_r(state, &cpu->h);
-            break;
-
-        case 0x05: // RLC L
-            rlc_r(state, &cpu->l);
-            break;
-
-        case 0x06: // RLC (HL)
-            rlc_mem_hl(state);
-            break;
-
-        case 0x07: // RLC A
-            rlc_r(state, &cpu->a);
-            break;
-
-        case 0x08: // RRC B
-            rrc_r(state, &cpu->b);
-            break;
-
-        case 0x09: // RRC C
-            rrc_r(state, &cpu->c);
-            break;
-
-        case 0x0A: // RRC D
-            rrc_r(state, &cpu->d);
-            break;
-
-        case 0x0B: // RRC E
-            rrc_r(state, &cpu->e);
-            break;
-
-        case 0x0C: // RRC H
-            rrc_r(state, &cpu->h);
-            break;
-
-        case 0x0D: // RRC L
-            rrc_r(state, &cpu->l);
-            break;
-
-        case 0x0E: // RRC (HL)
-            rrc_mem_hl(state);
-            break;
-
-        case 0x0F: // RRC A
-            rrc_r(state, &cpu->a);
-            break;
-
-        case 0x10: // RL B
-            rl_r(state, &cpu->b);
-            break;
-
-        case 0x11: // RL C
-            rl_r(state, &cpu->c);
-            break;
-
-        case 0x12: // RL D
-            rl_r(state, &cpu->d);
-            break;
-
-        case 0x13: // RL E
-            rl_r(state, &cpu->e);
-            break;
-
-        case 0x14: // RL H
-            rl_r(state, &cpu->h);
-            break;
-
-        case 0x15: // RL L
-            rl_r(state, &cpu->l);
-            break;
-
-        case 0x16: // RL (HL)
-            rl_mem_hl(state);
-            break;
-
-        case 0x17: // RL A
-            rl_r(state, &cpu->l);
-            break;
-
-        case 0x18: // RR B
-            rr_r(state, &cpu->b);
-            break;
-
-        case 0x19: // RR C
-            rr_r(state, &cpu->c);
-            break;
-
-        case 0x1A: // RR D
-            rr_r(state, &cpu->d);
-            break;
-
-        case 0x1B: // RR E
-            rr_r(state, &cpu->e);
-            break;
-
-        case 0x1C: // RR H
-            rr_r(state, &cpu->h);
-            break;
-
-        case 0x1D: // RR L
-            rr_r(state, &cpu->l);
-            break;
-
-        case 0x1E: // RR (HL)
-            rr_mem_hl(state);
-            break;
-
-        case 0x1F: // RR A
-            rr_r(state, &cpu->a);
-            break;
-
-        case 0x20: // SLA B
-            sla_r(state, &cpu->b);
-            break;
-
-        case 0x21: // SLA C
-            sla_r(state, &cpu->c);
-            break;
-
-        case 0x22: // SLA D
-            sla_r(state, &cpu->d);
-            break;
-
-        case 0x23: // SLA E
-            sla_r(state, &cpu->e);
-            break;
-
-        case 0x24: // SLA H
-            sla_r(state, &cpu->h);
-            break;
-
-        case 0x25: // SLA L
-            sla_r(state, &cpu->l);
-            break;
-
-        case 0x26: // SLA (HL)
-            sla_mem_hl(state);
-            break;
-
-        case 0x27: // SLA A
-            sla_r(state, &cpu->a);
-            break;
-
-        case 0x28: // SRA B
-            sra_r(state, &cpu->b);
-            break;
-
-        case 0x29: // SRA C
-            sra_r(state, &cpu->c);
-            break;
-
-        case 0x2A: // SRA D
-            sra_r(state, &cpu->d);
-            break;
-
-        case 0x2B: // SRA E
-            sra_r(state, &cpu->e);
-            break;
-
-        case 0x2C: // SRA H
-            sra_r(state, &cpu->h);
-            break;
-
-        case 0x2D: // SRA L
-            sra_r(state, &cpu->l);
-            break;
-
-        case 0x2E: // SRA (HL)
-            sra_mem_hl(state);
-            break;
-
-        case 0x2F: // SRA A
-            sra_r(state, &cpu->a);
-            break;
-
-        case 0x30: // SWAP B
-            swap_r(state, &cpu->b);
-            break;
-
-        case 0x31: // SWAP C
-            swap_r(state, &cpu->c);
-            break;
-
-        case 0x32: // SWAP D
-            swap_r(state, &cpu->d);
-            break;
-
-        case 0x33: // SWAP E
-            swap_r(state, &cpu->e);
-            break;
-
-        case 0x34: // SWAP H
-            swap_r(state, &cpu->h);
-            break;
-
-        case 0x35: // SWAP L
-            swap_r(state, &cpu->l);
-            break;
-
-        case 0x36: // SWAP (HL)
-            swap_mem_hl(state);
-            break;
-
-        case 0x37: // SWAP A
-            swap_r(state, &cpu->a);
-            break;
-
-        case 0x38: // SRL B
-            srl_r(state, &cpu->b);
-            break;
-
-        case 0x39: // SRL C
-            srl_r(state, &cpu->c);
-            break;
-
-        case 0x3A: // SRL D
-            srl_r(state, &cpu->d);
-            break;
-
-        case 0x3B: // SRL E
-            srl_r(state, &cpu->e);
-            break;
-
-        case 0x3C: // SRL H
-            srl_r(state, &cpu->h);
-            break;
-
-        case 0x3D: // SRL L
-            srl_r(state, &cpu->l);
-            break;
-
-        case 0x3E: // SRL H
-            srl_mem_hl(state);
-            break;
-
-        case 0x3F: // SRL A
-            srl_r(state, &cpu->a);
-            break;
-
-        case 0x40: // BIT 0, B
-            bit_r(state, cpu->b, 0);
-            break;
-
-        case 0x41: // BIT 0, C
-            bit_r(state, cpu->c, 0);
-            break;
-
-        case 0x42: // BIT 0, D
-            bit_r(state, cpu->d, 0);
-            break;
-
-        case 0x43: // BIT 0, E
-            bit_r(state, cpu->e, 0);
-            break;
-
-        case 0x44: // BIT 0, H
-            bit_r(state, cpu->h, 0);
-            break;
-
-        case 0x45: // BIT 0, L
-            bit_r(state, cpu->l, 0);
-            break;
-
-        case 0x46: // BIT 0, (HL)
-            bit_r(state, read8(state, cpu->hl), 0);
-            break;
-
-        case 0x47: // BIT 0, A
-            bit_r(state, cpu->a, 0);
-            break;
-
-        case 0x48: // BIT 1, B
-            bit_r(state, cpu->b, 1);
-            break;
-
-        case 0x49: // BIT 1, C
-            bit_r(state, cpu->c, 1);
-            break;
-
-        case 0x4A: // BIT 1, D
-            bit_r(state, cpu->d, 1);
-            break;
-
-        case 0x4B: // BIT 1, E
-            bit_r(state, cpu->e, 1);
-            break;
-
-        case 0x4C: // BIT 1, H
-            bit_r(state, cpu->h, 1);
-            break;
-
-        case 0x4D: // BIT 1, L
-            bit_r(state, cpu->l, 1);
-            break;
-
-        case 0x4E: // BIT 1, (HL)
-            bit_r(state, read8(state, cpu->hl), 1);
-            break;
-
-        case 0x4F: // BIT 1, A
-            bit_r(state, cpu->a, 1);
-            break;
-
-        case 0x50: // BIT 2, B
-            bit_r(state, cpu->b, 2);
-            break;
-
-        case 0x51: // BIT 2, C
-            bit_r(state, cpu->c, 2);
-            break;
-
-        case 0x52: // BIT 2, D
-            bit_r(state, cpu->d, 2);
-            break;
-
-        case 0x53: // BIT 2, E
-            bit_r(state, cpu->e, 2);
-            break;
-
-        case 0x54: // BIT 2, H
-            bit_r(state, cpu->h, 2);
-            break;
-
-        case 0x55: // BIT 2, L
-            bit_r(state, cpu->l, 2);
-            break;
-
-        case 0x56: // BIT 2, (HL)
-            bit_r(state, read8(state, cpu->hl), 2);
-            break;
-
-        case 0x57: // BIT 2, A
-            bit_r(state, cpu->a, 2);
-            break;
-
-        case 0x58: // BIT 3, B
-            bit_r(state, cpu->b, 3);
-            break;
-
-        case 0x59: // BIT 3, C
-            bit_r(state, cpu->c, 3);
-            break;
-
-        case 0x5A: // BIT 3, D
-            bit_r(state, cpu->d, 3);
-            break;
-
-        case 0x5B: // BIT 3, E
-            bit_r(state, cpu->e, 3);
-            break;
-
-        case 0x5C: // BIT 3, H
-            bit_r(state, cpu->h, 3);
-            break;
-
-        case 0x5D: // BIT 3, L
-            bit_r(state, cpu->l, 3);
-            break;
-
-        case 0x5E: // BIT 3, (HL)
-            bit_r(state, read8(state, cpu->hl), 3);
-            break;
-
-        case 0x5F: // BIT 3, A
-            bit_r(state, cpu->a, 3);
-            break;
-
-        case 0x60: // BIT 4, B
-            bit_r(state, cpu->b, 4);
-            break;
-
-        case 0x61: // BIT 4, C
-            bit_r(state, cpu->c, 4);
-            break;
-
-        case 0x62: // BIT 4, D
-            bit_r(state, cpu->d, 4);
-            break;
-
-        case 0x63: // BIT 4, E
-            bit_r(state, cpu->e, 4);
-            break;
-
-        case 0x64: // BIT 4, H
-            bit_r(state, cpu->h, 4);
-            break;
-
-        case 0x65: // BIT 4, L
-            bit_r(state, cpu->l, 4);
-            break;
-
-        case 0x66: // BIT 4, (HL)
-            bit_r(state, read8(state, cpu->hl), 4);
-            break;
-
-        case 0x67: // BIT 4, A
-            bit_r(state, cpu->a, 4);
-            break;
-
-        case 0x68: // BIT 5, B
-            bit_r(state, cpu->b, 5);
-            break;
-
-        case 0x69: // BIT 5, C
-            bit_r(state, cpu->c, 5);
-            break;
-
-        case 0x6A: // BIT 5, D
-            bit_r(state, cpu->d, 5);
-            break;
-
-        case 0x6B: // BIT 5, E
-            bit_r(state, cpu->e, 5);
-            break;
-
-        case 0x6C: // BIT 5, H
-            bit_r(state, cpu->h, 5);
-            break;
-
-        case 0x6D: // BIT 5, L
-            bit_r(state, cpu->l, 5);
-            break;
-
-        case 0x6E: // BIT 5, (HL)
-            bit_r(state, read8(state, cpu->hl), 5);
-            break;
-
-        case 0x6F: // BIT 5, A
-            bit_r(state, cpu->a, 5);
-            break;
-
-        case 0x70: // BIT 6, B
-            bit_r(state, cpu->b, 6);
-            break;
-
-        case 0x71: // BIT 6, C
-            bit_r(state, cpu->c, 6);
-            break;
-
-        case 0x72: // BIT 6, D
-            bit_r(state, cpu->d, 6);
-            break;
-
-        case 0x73: // BIT 6, E
-            bit_r(state, cpu->e, 6);
-            break;
-
-        case 0x74: // BIT 6, H
-            bit_r(state, cpu->h, 6);
-            break;
-
-        case 0x75: // BIT 6, L
-            bit_r(state, cpu->l, 6);
-            break;
-
-        case 0x76: // BIT 6, (HL)
-            bit_r(state, read8(state, cpu->hl), 6);
-            break;
-
-        case 0x77: // BIT 6, A
-            bit_r(state, cpu->a, 6);
-            break;
-
-        case 0x78: // BIT 7, B
-            bit_r(state, cpu->b, 7);
-            break;
-
-        case 0x79: // BIT 7, C
-            bit_r(state, cpu->c, 7);
-            break;
-
-        case 0x7A: // BIT 7, D
-            bit_r(state, cpu->d, 7);
-            break;
-
-        case 0x7B: // BIT 7, E
-            bit_r(state, cpu->e, 7);
-            break;
-
-        case 0x7C: // BIT 7, H
-            bit_r(state, cpu->h, 7);
-            break;
-
-        case 0x7D: // BIT 7, L
-            bit_r(state, cpu->l, 7);
-            break;
-
-        case 0x7E: // BIT 7, (HL)
-            bit_r(state, read8(state, cpu->hl), 7);
-            break;
-
-        case 0x7F: // BIT 7, A
-            bit_r(state, cpu->a, 7);
-            break;
-
-        case 0x80: // RES 0, B
-            set_bit(&cpu->b, 0, false);
-            break;
-
-        case 0x81: // RES 0, C
-            set_bit(&cpu->c, 0, false);
-            break;
-
-        case 0x82: // RES 0, D
-            set_bit(&cpu->d, 0, false);
-            break;
-
-        case 0x83: // RES 0, E
-            set_bit(&cpu->e, 0, false);
-            break;
-
-        case 0x84: // RES 0, H
-            set_bit(&cpu->h, 0, false);
-            break;
-
-        case 0x85: // RES 0, L
-            set_bit(&cpu->l, 0, false);
-            break;
-
-        case 0x86: // RES 0, (HL)
-            set_bit_mem_hl(state, 0, false);
-            break;
-
-        case 0x87: // RES 0, A
-            set_bit(&cpu->a, 0, false);
-            break;
-
-        case 0x88: // RES 1, B
-            set_bit(&cpu->b, 1, false);
-            break;
-
-        case 0x89: // RES 1, C
-            set_bit(&cpu->c, 1, false);
-            break;
-
-        case 0x8A: // RES 1, D
-            set_bit(&cpu->d, 1, false);
-            break;
-
-        case 0x8B: // RES 1, E
-            set_bit(&cpu->e, 1, false);
-            break;
-
-        case 0x8C: // RES 1, H
-            set_bit(&cpu->h, 1, false);
-            break;
-
-        case 0x8D: // RES 1, L
-            set_bit(&cpu->l, 1, false);
-            break;
-
-        case 0x8E: // RES 1, (HL)
-            set_bit_mem_hl(state, 1, false);
-            break;
-
-        case 0x8F: // RES 1, A
-            set_bit(&cpu->a, 1, false);
-            break;
-
-        case 0x90: // RES 2, B
-            set_bit(&cpu->b, 2, false);
-            break;
-
-        case 0x91: // RES 2, C
-            set_bit(&cpu->c, 2, false);
-            break;
-
-        case 0x92: // RES 2, D
-            set_bit(&cpu->d, 2, false);
-            break;
-
-        case 0x93: // RES 2, E
-            set_bit(&cpu->e, 2, false);
-            break;
-
-        case 0x94: // RES 2, H
-            set_bit(&cpu->h, 2, false);
-            break;
-
-        case 0x95: // RES 2, L
-            set_bit(&cpu->l, 2, false);
-            break;
-
-        case 0x96: // RES 2, (HL)
-            set_bit_mem_hl(state, 2, false);
-            break;
-
-        case 0x97: // RES 2, A
-            set_bit(&cpu->a, 2, false);
-            break;
-
-        case 0x98: // RES 3, B
-            set_bit(&cpu->b, 3, false);
-            break;
-
-        case 0x99: // RES 3, C
-            set_bit(&cpu->c, 3, false);
-            break;
-
-        case 0x9A: // RES 3, D
-            set_bit(&cpu->d, 3, false);
-            break;
-
-        case 0x9B: // RES 3, E
-            set_bit(&cpu->e, 3, false);
-            break;
-
-        case 0x9C: // RES 3, H
-            set_bit(&cpu->h, 3, false);
-            break;
-
-        case 0x9D: // RES 3, L
-            set_bit(&cpu->l, 3, false);
-            break;
-
-        case 0x9E: // RES 3, (HL)
-            set_bit_mem_hl(state, 3, false);
-            break;
-
-        case 0x9F: // RES 3, A
-            set_bit(&cpu->a, 3, false);
-            break;
-
-        case 0xA0: // RES 4, B
-            set_bit(&cpu->b, 4, false);
-            break;
-
-        case 0xA1: // RES 4, C
-            set_bit(&cpu->c, 4, false);
-            break;
-
-        case 0xA2: // RES 4, D
-            set_bit(&cpu->d, 4, false);
-            break;
-
-        case 0xA3: // RES 4, E
-            set_bit(&cpu->e, 4, false);
-            break;
-
-        case 0xA4: // RES 4, H
-            set_bit(&cpu->h, 4, false);
-            break;
-
-        case 0xA5: // RES 4, L
-            set_bit(&cpu->l, 4, false);
-            break;
-
-        case 0xA6: // RES 4, (HL)
-            set_bit_mem_hl(state, 4, false);
-            break;
-
-        case 0xA7: // RES 4, A
-            set_bit(&cpu->a, 4, false);
-            break;
-
-        case 0xA8: // RES 5, B
-            set_bit(&cpu->b, 5, false);
-            break;
-
-        case 0xA9: // RES 5, C
-            set_bit(&cpu->c, 5, false);
-            break;
-
-        case 0xAA: // RES 5, D
-            set_bit(&cpu->d, 5, false);
-            break;
-
-        case 0xAB: // RES 5, E
-            set_bit(&cpu->e, 5, false);
-            break;
-
-        case 0xAC: // RES 5, H
-            set_bit(&cpu->h, 5, false);
-            break;
-
-        case 0xAD: // RES 5, L
-            set_bit(&cpu->l, 5, false);
-            break;
-
-        case 0xAE: // RES 5, (HL)
-            set_bit_mem_hl(state, 5, false);
-            break;
-
-        case 0xAF: // RES 5, A
-            set_bit(&cpu->a, 5, false);
-            break;
-
-        case 0xB0: // RES 6, B
-            set_bit(&cpu->b, 6, false);
-            break;
-
-        case 0xB1: // RES 6, C
-            set_bit(&cpu->c, 6, false);
-            break;
-
-        case 0xB2: // RES 6, D
-            set_bit(&cpu->d, 6, false);
-            break;
-
-        case 0xB3: // RES 6, E
-            set_bit(&cpu->e, 6, false);
-            break;
-
-        case 0xB4: // RES 6, H
-            set_bit(&cpu->h, 6, false);
-            break;
-
-        case 0xB5: // RES 6, L
-            set_bit(&cpu->l, 6, false);
-            break;
-
-        case 0xB6: // RES 6, (HL)
-            set_bit_mem_hl(state, 6, false);
-            break;
-
-        case 0xB7: // RES 6, A
-            set_bit(&cpu->a, 6, false);
-            break;
-
-        case 0xB8: // RES 7, B
-            set_bit(&cpu->b, 7, false);
-            break;
-
-        case 0xB9: // RES 7, C
-            set_bit(&cpu->c, 7, false);
-            break;
-
-        case 0xBA: // RES 7, D
-            set_bit(&cpu->d, 7, false);
-            break;
-
-        case 0xBB: // RES 7, E
-            set_bit(&cpu->e, 7, false);
-            break;
-
-        case 0xBC: // RES 7, H
-            set_bit(&cpu->h, 7, false);
-            break;
-
-        case 0xBD: // RES 7, L
-            set_bit(&cpu->l, 7, false);
-            break;
-
-        case 0xBE: // RES 7, (HL)
-            set_bit_mem_hl(state, 7, false);
-            break;
-
-        case 0xBF: // RES 7, A
-            set_bit(&cpu->a, 7, false);
-            break;
-
-        case 0xC0: // SET 0, B
-            set_bit(&cpu->b, 0, true);
-            break;
-
-        case 0xC1: // SET 0, C
-            set_bit(&cpu->c, 0, true);
-            break;
-
-        case 0xC2: // SET 0, D
-            set_bit(&cpu->d, 0, true);
-            break;
-
-        case 0xC3: // SET 0, E
-            set_bit(&cpu->e, 0, true);
-            break;
-
-        case 0xC4: // SET 0, H
-            set_bit(&cpu->h, 0, true);
-            break;
-
-        case 0xC5: // SET 0, L
-            set_bit(&cpu->l, 0, true);
-            break;
-
-        case 0xC6: // SET 0, (HL)
-            set_bit_mem_hl(state, 0, true);
-            break;
-
-        case 0xC7: // SET 0, A
-            set_bit(&cpu->a, 0, true);
-            break;
-
-        case 0xC8: // SET 1, B
-            set_bit(&cpu->b, 1, true);
-            break;
-
-        case 0xC9: // SET 1, C
-            set_bit(&cpu->c, 1, true);
-            break;
-
-        case 0xCA: // SET 1, D
-            set_bit(&cpu->d, 1, true);
-            break;
-
-        case 0xCB: // SET 1, E
-            set_bit(&cpu->e, 1, true);
-            break;
-
-        case 0xCC: // SET 1, H
-            set_bit(&cpu->h, 1, true);
-            break;
-
-        case 0xCD: // SET 1, L
-            set_bit(&cpu->l, 1, true);
-            break;
-
-        case 0xCE: // SET 1, (HL)
-            set_bit_mem_hl(state, 1, true);
-            break;
-
-        case 0xCF: // SET 1, A
-            set_bit(&cpu->a, 1, true);
-            break;
-
-        case 0xD0: // SET 2, B
-            set_bit(&cpu->b, 2, true);
-            break;
-
-        case 0xD1: // SET 2, C
-            set_bit(&cpu->c, 2, true);
-            break;
-
-        case 0xD2: // SET 2, D
-            set_bit(&cpu->d, 2, true);
-            break;
-
-        case 0xD3: // SET 2, E
-            set_bit(&cpu->e, 2, true);
-            break;
-
-        case 0xD4: // SET 2, H
-            set_bit(&cpu->h, 2, true);
-            break;
-
-        case 0xD5: // SET 2, L
-            set_bit(&cpu->l, 2, true);
-            break;
-
-        case 0xD6: // SET 2, (HL)
-            set_bit_mem_hl(state, 2, true);
-            break;
-
-        case 0xD7: // SET 2, A
-            set_bit(&cpu->a, 2, true);
-            break;
-
-        case 0xD8: // SET 3, B
-            set_bit(&cpu->b, 3, true);
-            break;
-
-        case 0xD9: // SET 3, C
-            set_bit(&cpu->c, 3, true);
-            break;
-
-        case 0xDA: // SET 3, D
-            set_bit(&cpu->d, 3, true);
-            break;
-
-        case 0xDB: // SET 3, E
-            set_bit(&cpu->e, 3, true);
-            break;
-
-        case 0xDC: // SET 3, H
-            set_bit(&cpu->h, 3, true);
-            break;
-
-        case 0xDD: // SET 3, L
-            set_bit(&cpu->l, 3, true);
-            break;
-
-        case 0xDE: // SET 3, (HL)
-            set_bit_mem_hl(state, 3, true);
-            break;
-
-        case 0xDF: // SET 3, A
-            set_bit(&cpu->a, 3, true);
-            break;
-
-        case 0xE0: // SET 4, B
-            set_bit(&cpu->b, 4, true);
-            break;
-
-        case 0xE1: // SET 4, C
-            set_bit(&cpu->c, 4, true);
-            break;
-
-        case 0xE2: // SET 4, D
-            set_bit(&cpu->d, 4, true);
-            break;
-
-        case 0xE3: // SET 4, E
-            set_bit(&cpu->e, 4, true);
-            break;
-
-        case 0xE4: // SET 4, H
-            set_bit(&cpu->h, 4, true);
-            break;
-
-        case 0xE5: // SET 4, L
-            set_bit(&cpu->l, 4, true);
-            break;
-
-        case 0xE6: // SET 4, (HL)
-            set_bit_mem_hl(state, 4, true);
-            break;
-
-        case 0xE7: // SET 4, A
-            set_bit(&cpu->a, 4, true);
-            break;
-
-        case 0xE8: // SET 5, B
-            set_bit(&cpu->b, 5, true);
-            break;
-
-        case 0xE9: // SET 5, C
-            set_bit(&cpu->c, 5, true);
-            break;
-
-        case 0xEA: // SET 5, D
-            set_bit(&cpu->d, 5, true);
-            break;
-
-        case 0xEB: // SET 5, E
-            set_bit(&cpu->e, 5, true);
-            break;
-
-        case 0xEC: // SET 5, H
-            set_bit(&cpu->h, 5, true);
-            break;
-
-        case 0xED: // SET 5, L
-            set_bit(&cpu->l, 5, true);
-            break;
-
-        case 0xEE: // SET 5, (HL)
-            set_bit_mem_hl(state, 5, true);
-            break;
-
-        case 0xEF: // SET 5, A
-            set_bit(&cpu->a, 5, true);
-            break;
-
-        case 0xF0: // SET 6, B
-            set_bit(&cpu->b, 6, true);
-            break;
-
-        case 0xF1: // SET 6, C
-            set_bit(&cpu->c, 6, true);
-            break;
-
-        case 0xF2: // SET 6, D
-            set_bit(&cpu->d, 6, true);
-            break;
-
-        case 0xF3: // SET 6, E
-            set_bit(&cpu->e, 6, true);
-            break;
-
-        case 0xF4: // SET 6, H
-            set_bit(&cpu->h, 6, true);
-            break;
-
-        case 0xF5: // SET 6, L
-            set_bit(&cpu->l, 6, true);
-            break;
-
-        case 0xF6: // SET 6, (HL)
-            set_bit_mem_hl(state, 6, true);
-            break;
-
-        case 0xF7: // SET 6, A
-            set_bit(&cpu->a, 6, true);
-            break;
-
-        case 0xF8: // SET 7, B
-            set_bit(&cpu->b, 7, true);
-            break;
-
-        case 0xF9: // SET 7, C
-            set_bit(&cpu->c, 7, true);
-            break;
-
-        case 0xFA: // SET 7, D
-            set_bit(&cpu->d, 7, true);
-            break;
-
-        case 0xFB: // SET 7, E
-            set_bit(&cpu->e, 7, true);
-            break;
-
-        case 0xFC: // SET 7, H
-            set_bit(&cpu->h, 7, true);
-            break;
-
-        case 0xFD: // SET 7, L
-            set_bit(&cpu->l, 7, true);
-            break;
-
-        case 0xFE: // SET 7, (HL)
-            set_bit_mem_hl(state, 7, true);
-            break;
-
-        case 0xFF: // SET 7, A
-            set_bit(&cpu->a, 7, true);
-            break;
-
-        default:
-            assert(false);
+    DMGMmu *mmu = &state->mmu;
+
+    // TODO: real interrupts
+    if (cpu->halted) {
+        state->cycles += 4;
+        if (cpu->halt_flags != state->mmu.io[DMG_IO_IF]) {
+            cpu->halted = false;
+        }
+    }
+    if (!cpu->ime) {
+        return;
+    }
+    uint8_t ints = mmu->io[DMG_IO_IF] & mmu->io[DMG_IO_IE];
+    if (ints == 0x00) {
+        return;
+    }
+    if (ints & 0x01) { // vblank
+        rst(state, 0x40);
+        mmu->io[DMG_IO_IF] ^= 0x01;
+        cpu->ime = false;
+        return;
+    }
+    if (ints & 0x02) { // lcd stat
+        rst(state, 0x48);
+        mmu->io[DMG_IO_IF] ^= 0x02;
+        cpu->ime = false;
+        return;
+    }
+    if (ints & 0x04) { // timer
+        rst(state, 0x50);
+        mmu->io[DMG_IO_IF] ^= 0x04;
+        cpu->ime = false;
+        return;
+    }
+    if (ints & 0x08) { // serial
+        rst(state, 0x58);
+        mmu->io[DMG_IO_IF] ^= 0x08;
+        cpu->ime = false;
+        return;
+    }
+    if (ints & 0x10) { // joypad
+        rst(state, 0x60);
+        mmu->io[DMG_IO_IF] ^= 0x10;
+        cpu->ime = false;
+        return;
     }
 }
 
-void dmg_cpu_run(DMGState *state, uint32_t cycles) {
+void dmg_cpu_run(DMGState *state, size_t cycles) {
     DMGCpu *cpu = &state->cpu;
-    uint8_t opcode = read8_pc(state);
-    switch (opcode) {
+
+    service_interrupts(state);
+
+    switch (read8_pc(state)) {
 
         case 0x00: // NOP
             break;
@@ -1785,7 +809,7 @@ void dmg_cpu_run(DMGState *state, uint32_t cycles) {
             break;
 
         case 0x1A: // LD A, (DE)
-            write8(state, cpu->de, cpu->a);
+            cpu->a = read8(state, cpu->de);
             break;
 
         case 0x1B: // DEC DE
@@ -2493,7 +1517,1035 @@ void dmg_cpu_run(DMGState *state, uint32_t cycles) {
             break;
 
         case 0xCB: // CB-PREFIX
-            cb(state);
+            switch (read8_pc(state)) {
+
+                case 0x00: // RLC B
+                    rlc_r(state, &cpu->b);
+                    break;
+
+                case 0x01: // RLC C
+                    rlc_r(state, &cpu->c);
+                    break;
+
+                case 0x02: // RLC D
+                    rlc_r(state, &cpu->d);
+                    break;
+
+                case 0x03: // RLC E
+                    rlc_r(state, &cpu->e);
+                    break;
+
+                case 0x04: // RLC H
+                    rlc_r(state, &cpu->h);
+                    break;
+
+                case 0x05: // RLC L
+                    rlc_r(state, &cpu->l);
+                    break;
+
+                case 0x06: // RLC (HL)
+                    rlc_mem_hl(state);
+                    break;
+
+                case 0x07: // RLC A
+                    rlc_r(state, &cpu->a);
+                    break;
+
+                case 0x08: // RRC B
+                    rrc_r(state, &cpu->b);
+                    break;
+
+                case 0x09: // RRC C
+                    rrc_r(state, &cpu->c);
+                    break;
+
+                case 0x0A: // RRC D
+                    rrc_r(state, &cpu->d);
+                    break;
+
+                case 0x0B: // RRC E
+                    rrc_r(state, &cpu->e);
+                    break;
+
+                case 0x0C: // RRC H
+                    rrc_r(state, &cpu->h);
+                    break;
+
+                case 0x0D: // RRC L
+                    rrc_r(state, &cpu->l);
+                    break;
+
+                case 0x0E: // RRC (HL)
+                    rrc_mem_hl(state);
+                    break;
+
+                case 0x0F: // RRC A
+                    rrc_r(state, &cpu->a);
+                    break;
+
+                case 0x10: // RL B
+                    rl_r(state, &cpu->b);
+                    break;
+
+                case 0x11: // RL C
+                    rl_r(state, &cpu->c);
+                    break;
+
+                case 0x12: // RL D
+                    rl_r(state, &cpu->d);
+                    break;
+
+                case 0x13: // RL E
+                    rl_r(state, &cpu->e);
+                    break;
+
+                case 0x14: // RL H
+                    rl_r(state, &cpu->h);
+                    break;
+
+                case 0x15: // RL L
+                    rl_r(state, &cpu->l);
+                    break;
+
+                case 0x16: // RL (HL)
+                    rl_mem_hl(state);
+                    break;
+
+                case 0x17: // RL A
+                    rl_r(state, &cpu->l);
+                    break;
+
+                case 0x18: // RR B
+                    rr_r(state, &cpu->b);
+                    break;
+
+                case 0x19: // RR C
+                    rr_r(state, &cpu->c);
+                    break;
+
+                case 0x1A: // RR D
+                    rr_r(state, &cpu->d);
+                    break;
+
+                case 0x1B: // RR E
+                    rr_r(state, &cpu->e);
+                    break;
+
+                case 0x1C: // RR H
+                    rr_r(state, &cpu->h);
+                    break;
+
+                case 0x1D: // RR L
+                    rr_r(state, &cpu->l);
+                    break;
+
+                case 0x1E: // RR (HL)
+                    rr_mem_hl(state);
+                    break;
+
+                case 0x1F: // RR A
+                    rr_r(state, &cpu->a);
+                    break;
+
+                case 0x20: // SLA B
+                    sla_r(state, &cpu->b);
+                    break;
+
+                case 0x21: // SLA C
+                    sla_r(state, &cpu->c);
+                    break;
+
+                case 0x22: // SLA D
+                    sla_r(state, &cpu->d);
+                    break;
+
+                case 0x23: // SLA E
+                    sla_r(state, &cpu->e);
+                    break;
+
+                case 0x24: // SLA H
+                    sla_r(state, &cpu->h);
+                    break;
+
+                case 0x25: // SLA L
+                    sla_r(state, &cpu->l);
+                    break;
+
+                case 0x26: // SLA (HL)
+                    sla_mem_hl(state);
+                    break;
+
+                case 0x27: // SLA A
+                    sla_r(state, &cpu->a);
+                    break;
+
+                case 0x28: // SRA B
+                    sra_r(state, &cpu->b);
+                    break;
+
+                case 0x29: // SRA C
+                    sra_r(state, &cpu->c);
+                    break;
+
+                case 0x2A: // SRA D
+                    sra_r(state, &cpu->d);
+                    break;
+
+                case 0x2B: // SRA E
+                    sra_r(state, &cpu->e);
+                    break;
+
+                case 0x2C: // SRA H
+                    sra_r(state, &cpu->h);
+                    break;
+
+                case 0x2D: // SRA L
+                    sra_r(state, &cpu->l);
+                    break;
+
+                case 0x2E: // SRA (HL)
+                    sra_mem_hl(state);
+                    break;
+
+                case 0x2F: // SRA A
+                    sra_r(state, &cpu->a);
+                    break;
+
+                case 0x30: // SWAP B
+                    swap_r(state, &cpu->b);
+                    break;
+
+                case 0x31: // SWAP C
+                    swap_r(state, &cpu->c);
+                    break;
+
+                case 0x32: // SWAP D
+                    swap_r(state, &cpu->d);
+                    break;
+
+                case 0x33: // SWAP E
+                    swap_r(state, &cpu->e);
+                    break;
+
+                case 0x34: // SWAP H
+                    swap_r(state, &cpu->h);
+                    break;
+
+                case 0x35: // SWAP L
+                    swap_r(state, &cpu->l);
+                    break;
+
+                case 0x36: // SWAP (HL)
+                    swap_mem_hl(state);
+                    break;
+
+                case 0x37: // SWAP A
+                    swap_r(state, &cpu->a);
+                    break;
+
+                case 0x38: // SRL B
+                    srl_r(state, &cpu->b);
+                    break;
+
+                case 0x39: // SRL C
+                    srl_r(state, &cpu->c);
+                    break;
+
+                case 0x3A: // SRL D
+                    srl_r(state, &cpu->d);
+                    break;
+
+                case 0x3B: // SRL E
+                    srl_r(state, &cpu->e);
+                    break;
+
+                case 0x3C: // SRL H
+                    srl_r(state, &cpu->h);
+                    break;
+
+                case 0x3D: // SRL L
+                    srl_r(state, &cpu->l);
+                    break;
+
+                case 0x3E: // SRL H
+                    srl_mem_hl(state);
+                    break;
+
+                case 0x3F: // SRL A
+                    srl_r(state, &cpu->a);
+                    break;
+
+                case 0x40: // BIT 0, B
+                    bit_r(state, cpu->b, 0);
+                    break;
+
+                case 0x41: // BIT 0, C
+                    bit_r(state, cpu->c, 0);
+                    break;
+
+                case 0x42: // BIT 0, D
+                    bit_r(state, cpu->d, 0);
+                    break;
+
+                case 0x43: // BIT 0, E
+                    bit_r(state, cpu->e, 0);
+                    break;
+
+                case 0x44: // BIT 0, H
+                    bit_r(state, cpu->h, 0);
+                    break;
+
+                case 0x45: // BIT 0, L
+                    bit_r(state, cpu->l, 0);
+                    break;
+
+                case 0x46: // BIT 0, (HL)
+                    bit_r(state, read8(state, cpu->hl), 0);
+                    break;
+
+                case 0x47: // BIT 0, A
+                    bit_r(state, cpu->a, 0);
+                    break;
+
+                case 0x48: // BIT 1, B
+                    bit_r(state, cpu->b, 1);
+                    break;
+
+                case 0x49: // BIT 1, C
+                    bit_r(state, cpu->c, 1);
+                    break;
+
+                case 0x4A: // BIT 1, D
+                    bit_r(state, cpu->d, 1);
+                    break;
+
+                case 0x4B: // BIT 1, E
+                    bit_r(state, cpu->e, 1);
+                    break;
+
+                case 0x4C: // BIT 1, H
+                    bit_r(state, cpu->h, 1);
+                    break;
+
+                case 0x4D: // BIT 1, L
+                    bit_r(state, cpu->l, 1);
+                    break;
+
+                case 0x4E: // BIT 1, (HL)
+                    bit_r(state, read8(state, cpu->hl), 1);
+                    break;
+
+                case 0x4F: // BIT 1, A
+                    bit_r(state, cpu->a, 1);
+                    break;
+
+                case 0x50: // BIT 2, B
+                    bit_r(state, cpu->b, 2);
+                    break;
+
+                case 0x51: // BIT 2, C
+                    bit_r(state, cpu->c, 2);
+                    break;
+
+                case 0x52: // BIT 2, D
+                    bit_r(state, cpu->d, 2);
+                    break;
+
+                case 0x53: // BIT 2, E
+                    bit_r(state, cpu->e, 2);
+                    break;
+
+                case 0x54: // BIT 2, H
+                    bit_r(state, cpu->h, 2);
+                    break;
+
+                case 0x55: // BIT 2, L
+                    bit_r(state, cpu->l, 2);
+                    break;
+
+                case 0x56: // BIT 2, (HL)
+                    bit_r(state, read8(state, cpu->hl), 2);
+                    break;
+
+                case 0x57: // BIT 2, A
+                    bit_r(state, cpu->a, 2);
+                    break;
+
+                case 0x58: // BIT 3, B
+                    bit_r(state, cpu->b, 3);
+                    break;
+
+                case 0x59: // BIT 3, C
+                    bit_r(state, cpu->c, 3);
+                    break;
+
+                case 0x5A: // BIT 3, D
+                    bit_r(state, cpu->d, 3);
+                    break;
+
+                case 0x5B: // BIT 3, E
+                    bit_r(state, cpu->e, 3);
+                    break;
+
+                case 0x5C: // BIT 3, H
+                    bit_r(state, cpu->h, 3);
+                    break;
+
+                case 0x5D: // BIT 3, L
+                    bit_r(state, cpu->l, 3);
+                    break;
+
+                case 0x5E: // BIT 3, (HL)
+                    bit_r(state, read8(state, cpu->hl), 3);
+                    break;
+
+                case 0x5F: // BIT 3, A
+                    bit_r(state, cpu->a, 3);
+                    break;
+
+                case 0x60: // BIT 4, B
+                    bit_r(state, cpu->b, 4);
+                    break;
+
+                case 0x61: // BIT 4, C
+                    bit_r(state, cpu->c, 4);
+                    break;
+
+                case 0x62: // BIT 4, D
+                    bit_r(state, cpu->d, 4);
+                    break;
+
+                case 0x63: // BIT 4, E
+                    bit_r(state, cpu->e, 4);
+                    break;
+
+                case 0x64: // BIT 4, H
+                    bit_r(state, cpu->h, 4);
+                    break;
+
+                case 0x65: // BIT 4, L
+                    bit_r(state, cpu->l, 4);
+                    break;
+
+                case 0x66: // BIT 4, (HL)
+                    bit_r(state, read8(state, cpu->hl), 4);
+                    break;
+
+                case 0x67: // BIT 4, A
+                    bit_r(state, cpu->a, 4);
+                    break;
+
+                case 0x68: // BIT 5, B
+                    bit_r(state, cpu->b, 5);
+                    break;
+
+                case 0x69: // BIT 5, C
+                    bit_r(state, cpu->c, 5);
+                    break;
+
+                case 0x6A: // BIT 5, D
+                    bit_r(state, cpu->d, 5);
+                    break;
+
+                case 0x6B: // BIT 5, E
+                    bit_r(state, cpu->e, 5);
+                    break;
+
+                case 0x6C: // BIT 5, H
+                    bit_r(state, cpu->h, 5);
+                    break;
+
+                case 0x6D: // BIT 5, L
+                    bit_r(state, cpu->l, 5);
+                    break;
+
+                case 0x6E: // BIT 5, (HL)
+                    bit_r(state, read8(state, cpu->hl), 5);
+                    break;
+
+                case 0x6F: // BIT 5, A
+                    bit_r(state, cpu->a, 5);
+                    break;
+
+                case 0x70: // BIT 6, B
+                    bit_r(state, cpu->b, 6);
+                    break;
+
+                case 0x71: // BIT 6, C
+                    bit_r(state, cpu->c, 6);
+                    break;
+
+                case 0x72: // BIT 6, D
+                    bit_r(state, cpu->d, 6);
+                    break;
+
+                case 0x73: // BIT 6, E
+                    bit_r(state, cpu->e, 6);
+                    break;
+
+                case 0x74: // BIT 6, H
+                    bit_r(state, cpu->h, 6);
+                    break;
+
+                case 0x75: // BIT 6, L
+                    bit_r(state, cpu->l, 6);
+                    break;
+
+                case 0x76: // BIT 6, (HL)
+                    bit_r(state, read8(state, cpu->hl), 6);
+                    break;
+
+                case 0x77: // BIT 6, A
+                    bit_r(state, cpu->a, 6);
+                    break;
+
+                case 0x78: // BIT 7, B
+                    bit_r(state, cpu->b, 7);
+                    break;
+
+                case 0x79: // BIT 7, C
+                    bit_r(state, cpu->c, 7);
+                    break;
+
+                case 0x7A: // BIT 7, D
+                    bit_r(state, cpu->d, 7);
+                    break;
+
+                case 0x7B: // BIT 7, E
+                    bit_r(state, cpu->e, 7);
+                    break;
+
+                case 0x7C: // BIT 7, H
+                    bit_r(state, cpu->h, 7);
+                    break;
+
+                case 0x7D: // BIT 7, L
+                    bit_r(state, cpu->l, 7);
+                    break;
+
+                case 0x7E: // BIT 7, (HL)
+                    bit_r(state, read8(state, cpu->hl), 7);
+                    break;
+
+                case 0x7F: // BIT 7, A
+                    bit_r(state, cpu->a, 7);
+                    break;
+
+                case 0x80: // RES 0, B
+                    set_bit(&cpu->b, 0, false);
+                    break;
+
+                case 0x81: // RES 0, C
+                    set_bit(&cpu->c, 0, false);
+                    break;
+
+                case 0x82: // RES 0, D
+                    set_bit(&cpu->d, 0, false);
+                    break;
+
+                case 0x83: // RES 0, E
+                    set_bit(&cpu->e, 0, false);
+                    break;
+
+                case 0x84: // RES 0, H
+                    set_bit(&cpu->h, 0, false);
+                    break;
+
+                case 0x85: // RES 0, L
+                    set_bit(&cpu->l, 0, false);
+                    break;
+
+                case 0x86: // RES 0, (HL)
+                    set_bit_mem_hl(state, 0, false);
+                    break;
+
+                case 0x87: // RES 0, A
+                    set_bit(&cpu->a, 0, false);
+                    break;
+
+                case 0x88: // RES 1, B
+                    set_bit(&cpu->b, 1, false);
+                    break;
+
+                case 0x89: // RES 1, C
+                    set_bit(&cpu->c, 1, false);
+                    break;
+
+                case 0x8A: // RES 1, D
+                    set_bit(&cpu->d, 1, false);
+                    break;
+
+                case 0x8B: // RES 1, E
+                    set_bit(&cpu->e, 1, false);
+                    break;
+
+                case 0x8C: // RES 1, H
+                    set_bit(&cpu->h, 1, false);
+                    break;
+
+                case 0x8D: // RES 1, L
+                    set_bit(&cpu->l, 1, false);
+                    break;
+
+                case 0x8E: // RES 1, (HL)
+                    set_bit_mem_hl(state, 1, false);
+                    break;
+
+                case 0x8F: // RES 1, A
+                    set_bit(&cpu->a, 1, false);
+                    break;
+
+                case 0x90: // RES 2, B
+                    set_bit(&cpu->b, 2, false);
+                    break;
+
+                case 0x91: // RES 2, C
+                    set_bit(&cpu->c, 2, false);
+                    break;
+
+                case 0x92: // RES 2, D
+                    set_bit(&cpu->d, 2, false);
+                    break;
+
+                case 0x93: // RES 2, E
+                    set_bit(&cpu->e, 2, false);
+                    break;
+
+                case 0x94: // RES 2, H
+                    set_bit(&cpu->h, 2, false);
+                    break;
+
+                case 0x95: // RES 2, L
+                    set_bit(&cpu->l, 2, false);
+                    break;
+
+                case 0x96: // RES 2, (HL)
+                    set_bit_mem_hl(state, 2, false);
+                    break;
+
+                case 0x97: // RES 2, A
+                    set_bit(&cpu->a, 2, false);
+                    break;
+
+                case 0x98: // RES 3, B
+                    set_bit(&cpu->b, 3, false);
+                    break;
+
+                case 0x99: // RES 3, C
+                    set_bit(&cpu->c, 3, false);
+                    break;
+
+                case 0x9A: // RES 3, D
+                    set_bit(&cpu->d, 3, false);
+                    break;
+
+                case 0x9B: // RES 3, E
+                    set_bit(&cpu->e, 3, false);
+                    break;
+
+                case 0x9C: // RES 3, H
+                    set_bit(&cpu->h, 3, false);
+                    break;
+
+                case 0x9D: // RES 3, L
+                    set_bit(&cpu->l, 3, false);
+                    break;
+
+                case 0x9E: // RES 3, (HL)
+                    set_bit_mem_hl(state, 3, false);
+                    break;
+
+                case 0x9F: // RES 3, A
+                    set_bit(&cpu->a, 3, false);
+                    break;
+
+                case 0xA0: // RES 4, B
+                    set_bit(&cpu->b, 4, false);
+                    break;
+
+                case 0xA1: // RES 4, C
+                    set_bit(&cpu->c, 4, false);
+                    break;
+
+                case 0xA2: // RES 4, D
+                    set_bit(&cpu->d, 4, false);
+                    break;
+
+                case 0xA3: // RES 4, E
+                    set_bit(&cpu->e, 4, false);
+                    break;
+
+                case 0xA4: // RES 4, H
+                    set_bit(&cpu->h, 4, false);
+                    break;
+
+                case 0xA5: // RES 4, L
+                    set_bit(&cpu->l, 4, false);
+                    break;
+
+                case 0xA6: // RES 4, (HL)
+                    set_bit_mem_hl(state, 4, false);
+                    break;
+
+                case 0xA7: // RES 4, A
+                    set_bit(&cpu->a, 4, false);
+                    break;
+
+                case 0xA8: // RES 5, B
+                    set_bit(&cpu->b, 5, false);
+                    break;
+
+                case 0xA9: // RES 5, C
+                    set_bit(&cpu->c, 5, false);
+                    break;
+
+                case 0xAA: // RES 5, D
+                    set_bit(&cpu->d, 5, false);
+                    break;
+
+                case 0xAB: // RES 5, E
+                    set_bit(&cpu->e, 5, false);
+                    break;
+
+                case 0xAC: // RES 5, H
+                    set_bit(&cpu->h, 5, false);
+                    break;
+
+                case 0xAD: // RES 5, L
+                    set_bit(&cpu->l, 5, false);
+                    break;
+
+                case 0xAE: // RES 5, (HL)
+                    set_bit_mem_hl(state, 5, false);
+                    break;
+
+                case 0xAF: // RES 5, A
+                    set_bit(&cpu->a, 5, false);
+                    break;
+
+                case 0xB0: // RES 6, B
+                    set_bit(&cpu->b, 6, false);
+                    break;
+
+                case 0xB1: // RES 6, C
+                    set_bit(&cpu->c, 6, false);
+                    break;
+
+                case 0xB2: // RES 6, D
+                    set_bit(&cpu->d, 6, false);
+                    break;
+
+                case 0xB3: // RES 6, E
+                    set_bit(&cpu->e, 6, false);
+                    break;
+
+                case 0xB4: // RES 6, H
+                    set_bit(&cpu->h, 6, false);
+                    break;
+
+                case 0xB5: // RES 6, L
+                    set_bit(&cpu->l, 6, false);
+                    break;
+
+                case 0xB6: // RES 6, (HL)
+                    set_bit_mem_hl(state, 6, false);
+                    break;
+
+                case 0xB7: // RES 6, A
+                    set_bit(&cpu->a, 6, false);
+                    break;
+
+                case 0xB8: // RES 7, B
+                    set_bit(&cpu->b, 7, false);
+                    break;
+
+                case 0xB9: // RES 7, C
+                    set_bit(&cpu->c, 7, false);
+                    break;
+
+                case 0xBA: // RES 7, D
+                    set_bit(&cpu->d, 7, false);
+                    break;
+
+                case 0xBB: // RES 7, E
+                    set_bit(&cpu->e, 7, false);
+                    break;
+
+                case 0xBC: // RES 7, H
+                    set_bit(&cpu->h, 7, false);
+                    break;
+
+                case 0xBD: // RES 7, L
+                    set_bit(&cpu->l, 7, false);
+                    break;
+
+                case 0xBE: // RES 7, (HL)
+                    set_bit_mem_hl(state, 7, false);
+                    break;
+
+                case 0xBF: // RES 7, A
+                    set_bit(&cpu->a, 7, false);
+                    break;
+
+                case 0xC0: // SET 0, B
+                    set_bit(&cpu->b, 0, true);
+                    break;
+
+                case 0xC1: // SET 0, C
+                    set_bit(&cpu->c, 0, true);
+                    break;
+
+                case 0xC2: // SET 0, D
+                    set_bit(&cpu->d, 0, true);
+                    break;
+
+                case 0xC3: // SET 0, E
+                    set_bit(&cpu->e, 0, true);
+                    break;
+
+                case 0xC4: // SET 0, H
+                    set_bit(&cpu->h, 0, true);
+                    break;
+
+                case 0xC5: // SET 0, L
+                    set_bit(&cpu->l, 0, true);
+                    break;
+
+                case 0xC6: // SET 0, (HL)
+                    set_bit_mem_hl(state, 0, true);
+                    break;
+
+                case 0xC7: // SET 0, A
+                    set_bit(&cpu->a, 0, true);
+                    break;
+
+                case 0xC8: // SET 1, B
+                    set_bit(&cpu->b, 1, true);
+                    break;
+
+                case 0xC9: // SET 1, C
+                    set_bit(&cpu->c, 1, true);
+                    break;
+
+                case 0xCA: // SET 1, D
+                    set_bit(&cpu->d, 1, true);
+                    break;
+
+                case 0xCB: // SET 1, E
+                    set_bit(&cpu->e, 1, true);
+                    break;
+
+                case 0xCC: // SET 1, H
+                    set_bit(&cpu->h, 1, true);
+                    break;
+
+                case 0xCD: // SET 1, L
+                    set_bit(&cpu->l, 1, true);
+                    break;
+
+                case 0xCE: // SET 1, (HL)
+                    set_bit_mem_hl(state, 1, true);
+                    break;
+
+                case 0xCF: // SET 1, A
+                    set_bit(&cpu->a, 1, true);
+                    break;
+
+                case 0xD0: // SET 2, B
+                    set_bit(&cpu->b, 2, true);
+                    break;
+
+                case 0xD1: // SET 2, C
+                    set_bit(&cpu->c, 2, true);
+                    break;
+
+                case 0xD2: // SET 2, D
+                    set_bit(&cpu->d, 2, true);
+                    break;
+
+                case 0xD3: // SET 2, E
+                    set_bit(&cpu->e, 2, true);
+                    break;
+
+                case 0xD4: // SET 2, H
+                    set_bit(&cpu->h, 2, true);
+                    break;
+
+                case 0xD5: // SET 2, L
+                    set_bit(&cpu->l, 2, true);
+                    break;
+
+                case 0xD6: // SET 2, (HL)
+                    set_bit_mem_hl(state, 2, true);
+                    break;
+
+                case 0xD7: // SET 2, A
+                    set_bit(&cpu->a, 2, true);
+                    break;
+
+                case 0xD8: // SET 3, B
+                    set_bit(&cpu->b, 3, true);
+                    break;
+
+                case 0xD9: // SET 3, C
+                    set_bit(&cpu->c, 3, true);
+                    break;
+
+                case 0xDA: // SET 3, D
+                    set_bit(&cpu->d, 3, true);
+                    break;
+
+                case 0xDB: // SET 3, E
+                    set_bit(&cpu->e, 3, true);
+                    break;
+
+                case 0xDC: // SET 3, H
+                    set_bit(&cpu->h, 3, true);
+                    break;
+
+                case 0xDD: // SET 3, L
+                    set_bit(&cpu->l, 3, true);
+                    break;
+
+                case 0xDE: // SET 3, (HL)
+                    set_bit_mem_hl(state, 3, true);
+                    break;
+
+                case 0xDF: // SET 3, A
+                    set_bit(&cpu->a, 3, true);
+                    break;
+
+                case 0xE0: // SET 4, B
+                    set_bit(&cpu->b, 4, true);
+                    break;
+
+                case 0xE1: // SET 4, C
+                    set_bit(&cpu->c, 4, true);
+                    break;
+
+                case 0xE2: // SET 4, D
+                    set_bit(&cpu->d, 4, true);
+                    break;
+
+                case 0xE3: // SET 4, E
+                    set_bit(&cpu->e, 4, true);
+                    break;
+
+                case 0xE4: // SET 4, H
+                    set_bit(&cpu->h, 4, true);
+                    break;
+
+                case 0xE5: // SET 4, L
+                    set_bit(&cpu->l, 4, true);
+                    break;
+
+                case 0xE6: // SET 4, (HL)
+                    set_bit_mem_hl(state, 4, true);
+                    break;
+
+                case 0xE7: // SET 4, A
+                    set_bit(&cpu->a, 4, true);
+                    break;
+
+                case 0xE8: // SET 5, B
+                    set_bit(&cpu->b, 5, true);
+                    break;
+
+                case 0xE9: // SET 5, C
+                    set_bit(&cpu->c, 5, true);
+                    break;
+
+                case 0xEA: // SET 5, D
+                    set_bit(&cpu->d, 5, true);
+                    break;
+
+                case 0xEB: // SET 5, E
+                    set_bit(&cpu->e, 5, true);
+                    break;
+
+                case 0xEC: // SET 5, H
+                    set_bit(&cpu->h, 5, true);
+                    break;
+
+                case 0xED: // SET 5, L
+                    set_bit(&cpu->l, 5, true);
+                    break;
+
+                case 0xEE: // SET 5, (HL)
+                    set_bit_mem_hl(state, 5, true);
+                    break;
+
+                case 0xEF: // SET 5, A
+                    set_bit(&cpu->a, 5, true);
+                    break;
+
+                case 0xF0: // SET 6, B
+                    set_bit(&cpu->b, 6, true);
+                    break;
+
+                case 0xF1: // SET 6, C
+                    set_bit(&cpu->c, 6, true);
+                    break;
+
+                case 0xF2: // SET 6, D
+                    set_bit(&cpu->d, 6, true);
+                    break;
+
+                case 0xF3: // SET 6, E
+                    set_bit(&cpu->e, 6, true);
+                    break;
+
+                case 0xF4: // SET 6, H
+                    set_bit(&cpu->h, 6, true);
+                    break;
+
+                case 0xF5: // SET 6, L
+                    set_bit(&cpu->l, 6, true);
+                    break;
+
+                case 0xF6: // SET 6, (HL)
+                    set_bit_mem_hl(state, 6, true);
+                    break;
+
+                case 0xF7: // SET 6, A
+                    set_bit(&cpu->a, 6, true);
+                    break;
+
+                case 0xF8: // SET 7, B
+                    set_bit(&cpu->b, 7, true);
+                    break;
+
+                case 0xF9: // SET 7, C
+                    set_bit(&cpu->c, 7, true);
+                    break;
+
+                case 0xFA: // SET 7, D
+                    set_bit(&cpu->d, 7, true);
+                    break;
+
+                case 0xFB: // SET 7, E
+                    set_bit(&cpu->e, 7, true);
+                    break;
+
+                case 0xFC: // SET 7, H
+                    set_bit(&cpu->h, 7, true);
+                    break;
+
+                case 0xFD: // SET 7, L
+                    set_bit(&cpu->l, 7, true);
+                    break;
+
+                case 0xFE: // SET 7, (HL)
+                    set_bit_mem_hl(state, 7, true);
+                    break;
+
+                case 0xFF: // SET 7, A
+                    set_bit(&cpu->a, 7, true);
+                    break;
+
+                default:
+                    assert(false);
+            }
             break;
 
         case 0xCC: // CALL Z, NN
