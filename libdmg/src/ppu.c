@@ -2,13 +2,6 @@
 #include <dmg/mmu.h>
 #include <dmg/state.h>
 
-static DMG_INLINE int8_t signify8(uint8_t value) {
-    if (value <= 0x7F) {
-        return value;
-    }
-    return -(int8_t) (((~value) + 1) & 0xFF);
-}
-
 static DMG_INLINE uint8_t bg_palette_for_data(uint8_t data, uint8_t bgp) {
     switch (data) {
         case 0x00:
@@ -31,7 +24,7 @@ static DMG_INLINE uint32_t bg_pixel_at(DMGState *state, uint8_t x, uint8_t y, ui
     uint8_t tile_y = (y + scy) >> 3; // / 8
     uint16_t tile_idx = (tile_y << 5) + tile_x; // * 32 + tile_x
     uint8_t tile_code = dmg_mmu_read(state, bg_tile_map_table + tile_idx);
-    uint16_t bg_pattern_table = (uint16_t) ((lcdc & 0x10)? (0x8000 + (tile_code * 16)) : 0x9000 + (signify8(tile_code) * 16));
+    uint16_t bg_pattern_table = (uint16_t) ((lcdc & 0x10)? (0x8000 + (tile_code * 16)) : 0x9000 + (((int8_t) tile_code) * 16));
     uint8_t char_x = (uint8_t) ((x + scx) & 0x07); // % 8
     uint8_t char_y = (uint8_t) (((y + scy) & 0x07) << 1); // % 8 * 2
     uint8_t bitlow = (uint8_t) ((dmg_mmu_read(state, bg_pattern_table + char_y) & (0x80 >> char_x)) != 0);

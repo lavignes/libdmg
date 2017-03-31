@@ -39,7 +39,7 @@ static DMG_INLINE void set_bit(uint8_t *byte, uint8_t n, bool value) {
 }
 
 static DMG_INLINE bool get_bit(uint8_t *byte, uint8_t n) {
-    return (*byte >> n) != 0;
+    return ((*byte >> n) & 0x01) != 0x00;
 }
 
 static DMG_INLINE void set_z(uint8_t *f, bool value) {
@@ -117,16 +117,9 @@ static DMG_INLINE void stop(DMGState *state) {
     assert(false);
 }
 
-static DMG_INLINE int8_t signify8(uint8_t value) {
-    if (value <= 0x7F) {
-        return value;
-    }
-    return -(int8_t)(((~value) + (uint8_t)1) & (uint8_t)0xFF);
-}
-
 static DMG_INLINE void jr_n(DMGState *state) {
     state->cycles += 4;
-    state->cpu.pc += signify8(read8_pc(state));
+    state->cpu.pc += (int8_t) read8_pc(state);
 }
 
 static DMG_INLINE void ldi_hl_a(DMGState *state) {
@@ -1389,7 +1382,7 @@ void dmg_cpu_run(DMGState *state, size_t cycles) {
             break;
 
         case 0xAB: // XOR E
-            xor_r(state, cpu->c);
+            xor_r(state, cpu->e);
             break;
 
         case 0xAC: // XOR H
@@ -1421,7 +1414,7 @@ void dmg_cpu_run(DMGState *state, size_t cycles) {
             break;
 
         case 0xB3: // OR E
-            or_r(state, cpu->c);
+            or_r(state, cpu->e);
             break;
 
         case 0xB4: // OR H
@@ -1612,7 +1605,7 @@ void dmg_cpu_run(DMGState *state, size_t cycles) {
                     break;
 
                 case 0x17: // RL A
-                    rl_r(state, &cpu->l);
+                    rl_r(state, &cpu->a);
                     break;
 
                 case 0x18: // RR B
@@ -1767,7 +1760,7 @@ void dmg_cpu_run(DMGState *state, size_t cycles) {
                     srl_r(state, &cpu->l);
                     break;
 
-                case 0x3E: // SRL H
+                case 0x3E: // SRL (HL)
                     srl_mem_hl(state);
                     break;
 
