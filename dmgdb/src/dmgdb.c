@@ -20,7 +20,7 @@ void vblank(DMGState *state) {
     SDL_RenderPresent(renderer);
 }
 
-void *line(void *userdata) {
+int debugger(void *userdata) {
     bool exit = false;
     do {
         printf("dmg> ");
@@ -41,7 +41,7 @@ void *line(void *userdata) {
             free(line);
         }
     } while (!exit);
-    return NULL;
+    return 0;
 }
 
 int main() {
@@ -62,25 +62,19 @@ int main() {
     state->cpu.ime = true;
     state->rom = rom;
 
-    pthread_t linethread;
-    pthread_create(&linethread, NULL, line, NULL);
+    SDL_Thread *debugger_thread = SDL_CreateThread(debugger, "Debugger", NULL);
 
-    uint32_t input_timer = SDL_GetTicks();
     while (true) {
+        SDL_Event event;
+        SDL_PollEvent(&event);
+        if (event.type == SDL_QUIT) {
+            break;
+        }
         size_t cycles = state->cycles;
         dmg_cpu_run(state, 0);
         cycles = state->cycles - cycles;
         while(cycles--) {
             dmg_ppu_run(state, vblank, 0);
-        }
-        uint32_t current_time = SDL_GetTicks();
-        if (current_time - input_timer > 17) {
-            SDL_Event event;
-            SDL_PollEvent(&event);
-            if (event.type == SDL_QUIT) {
-                break;
-            }
-            input_timer = current_time;
         }
     }
 
@@ -90,8 +84,9 @@ int main() {
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+
+    SDL_WaitThread(debugger_thread, NULL);
     SDL_Quit();
 
-    pthread_join(linethread, NULL);
     return 0;
 }

@@ -48,7 +48,7 @@ uint8_t dmg_mmu_read(DMGState *state, uint16_t address) {
             return mmu->wram[address - 0xC000];
 
         case 0xD000:
-            return mmu->sram[mmu->io[DMG_IO_SVBK] & 0x07][address -0xD000];
+            return mmu->sram[mmu->io[DMG_IO_SVBK] & 0x07][address - 0xD000];
 
         case 0xE000:
         case 0xF000:

@@ -81,7 +81,7 @@ static DMG_INLINE void inc_rr(DMGState *state, uint16_t *rr) {
 
 static DMG_INLINE void inc_r(DMGState *state, uint8_t *r) {
     uint8_t *f = &state->cpu.f;
-    set_h(f, (*r & 0x0F) == 0x0F);
+    set_h(f, (*r & 0x0F) == 0x00);
     *r += 1;
     set_z(f, *r == 0x00);
     set_n(f, false);
@@ -89,7 +89,7 @@ static DMG_INLINE void inc_r(DMGState *state, uint8_t *r) {
 
 static DMG_INLINE void dec_r(DMGState *state, uint8_t *r) {
     uint8_t *f = &state->cpu.f;
-    set_h(f, (*r & 0x0F) == 0x00);
+    set_h(f, (*r & 0x0F) == 0x0F);
     *r -= 1;
     set_z(f, *r == 0x00);
     set_n(f, true);
@@ -187,7 +187,7 @@ static DMG_INLINE void inc_mem_hl(DMGState *state) {
     uint16_t *hl = &state->cpu.hl;
     uint8_t *f = &state->cpu.f;
     uint16_t overflow = read8(state, *hl);
-    set_h(f, (overflow & 0x0F) == 0x0F);
+    set_h(f, (overflow & 0x0F) == 0x00);
     overflow = (uint16_t) ((overflow + 1) & 0xFF);
     write8(state, *hl, (uint8_t) overflow);
     set_z(f, overflow == 0x00);
@@ -198,7 +198,7 @@ static DMG_INLINE void dec_mem_hl(DMGState *state) {
     uint16_t *hl = &state->cpu.hl;
     uint8_t *f = &state->cpu.f;
     uint16_t overflow = read8(state, *hl);
-    set_h(f, (overflow & 0x0F) == 0x00);
+    set_h(f, (overflow & 0x0F) == 0x0F);
     overflow = (uint16_t) ((overflow - 1) & 0xFF);
     write8(state, *hl, (uint8_t) overflow);
     set_z(f, overflow == 0x00);
@@ -242,11 +242,11 @@ static DMG_INLINE void halt(DMGState *state) {
 static DMG_INLINE void add_r(DMGState *state, uint8_t r) {
     uint8_t *f = &state->cpu.f;
     uint8_t *a = &state->cpu.a;
-    uint16_t tmp = *a;
-    set_h(f, ((tmp & 0x0F) + (r & 0x0F)) > 0x0F);
-    a += r;
-    set_z(f, *a == 0x00);
+    uint16_t tmp = *a + r;
+    set_h(f, ((*a & 0x0F) + (r & 0x0F)) > 0x0F);
     set_c(f, tmp > *a);
+    *a = (uint8_t) (tmp & 0xFF);
+    set_z(f, *a == 0x00);
     set_n(f, false);
 }
 
@@ -254,7 +254,7 @@ static DMG_INLINE void adc_r(DMGState *state, uint8_t r) {
     uint8_t *f = &state->cpu.f;
     uint8_t *a = &state->cpu.a;
     uint16_t tmp = *a + r + get_c(f);
-    set_h(f, ((tmp & 0x0F) + (r & 0x0F) + get_c(f)) > 0x0F);
+    set_h(f, ((*a & 0x0F) + (r & 0x0F) + get_c(f)) > 0x0F);
     set_c(f, tmp > 0xFF);
     *a = (uint8_t) (tmp & 0xFF);
     set_z(f, *a == 0x00);
@@ -1208,7 +1208,7 @@ void dmg_cpu_run(DMGState *state, size_t cycles) {
             cpu->a = cpu->l;
             break;
 
-        case 0x7E: // LD L, (HL)
+        case 0x7E: // LD A, (HL)
             cpu->a = read8(state, cpu->hl);
             break;
 
@@ -1272,7 +1272,7 @@ void dmg_cpu_run(DMGState *state, size_t cycles) {
             adc_r(state, cpu->l);
             break;
 
-        case 0x8E: // ADD (HL)
+        case 0x8E: // ADC (HL)
             adc_r(state, read8(state, cpu->hl));
             break;
 
